@@ -1,0 +1,16 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.git
+.gitignore
+.pytest_cache
+.coverage
+*.log
+*.db
+venv/
+env/
+.env
+.vscode/
+.idea/
+notebooks/.ipynb_checkpoints/

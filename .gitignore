@@ -1,0 +1,108 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project specific
+*.log
+*.db
+*.sqlite
+.env
+data/market/snapshots/*
+data/market/options/*
+data/market/underlyings/*
+data/historical/*
+data/cache/*
+logs/*
+!logs/.gitkeep
+!data/market/.gitkeep
+!data/cache/.gitkeep
+!data/historical/.gitkeep
+database/*.db
+database/*.sqlite
+
+# Trading specific
+*.csv
+*.json
+options_snapshot_*.json
+market_data_*.json
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+
+# API Keys and credentials
+config/config.live.yaml
+config/secrets.yaml
+*.key
+*.pem
+*.p12
+api_keys.txt
+credentials.json
+
+# Interactive Brokers
+ib_*.log
+tws_*.log
+gateway_*.log
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Docker
+docker-compose.override.yml
+
+# Backups
+*.bak
+backup_*.tar.gz
+
+# OS specific
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+

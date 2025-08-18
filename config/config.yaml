@@ -1,0 +1,71 @@
+# Heston Trading System Configuration
+environment: ${ENV:development}
+
+# Interactive Brokers Connection
+ib:
+  host: ${IB_HOST:127.0.0.1}
+  port: ${IB_PORT:7497}  # 7497 for paper, 7496 for live
+  client_id: ${IB_CLIENT_ID:1}
+
+# Strategy Parameters
+strategy:
+  calibration:
+    frequency_minutes: 10
+    lookback_days: 20
+    min_options: 100
+    rmse_trigger_mult: 1.5
+    
+  signals:
+    z_score_threshold: 2.5
+    exit_threshold: 1.0
+    percentile: 0.98
+    window_hours: 3
+    max_positions: 50
+    
+  filters:
+    dte_min: 10
+    dte_max: 50
+    moneyness_pct: 9
+    spread_pct_max: 10
+    mid_price_min: 0.20
+    volume_min: 1000
+    oi_min: 500
+
+# Data Feed Settings
+data:
+  snapshot_interval: 5  # seconds
+  history_size: 720     # snapshots to keep (1 hour)
+  symbols:
+    - SPX
+    - XSP
+
+# Risk Management
+risk:
+  daily_soft_stop_pct: 0.5
+  daily_hard_stop_pct: 1.0
+  max_delta_exposure: 0.05
+  max_vega_exposure: 2500
+  max_gamma_exposure: 2000
+  position_size_limit: 20000
+
+# Execution Settings
+execution:
+  order_type: limit
+  slippage_limit_bps: 15
+  order_timeout_seconds: 10
+  reprice_threshold_bps: 5
+  
+# Hedging
+hedging:
+  delta_band_norm: 0.05
+  spy_spread_threshold_bps: 3
+  preferred_instruments:
+    - SPY
+    - ES
+
+# Monitoring
+monitoring:
+  dashboard_port: 8050
+  prometheus_port: 9090
+  log_level: INFO
+  alerts_enabled: true

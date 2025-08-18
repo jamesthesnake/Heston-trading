@@ -1,0 +1,57 @@
+# Paper Trading Configuration
+environment: paper
+
+# Interactive Brokers connection
+ib:
+  host: "127.0.0.1"
+  port: 7497  # Paper trading port
+  client_id: 2
+
+# Real data but paper execution
+data:
+  use_mock: false
+
+# Options screening criteria for paper trading
+options:
+  screening:
+    min_dte: 10
+    max_dte: 50
+    strike_range_pct: 0.09  # ±9% around ATM
+    max_spread_width_pct: 0.10  # ≤10% of mid
+    min_mid_price: 0.20  # ≥$0.20
+    min_volume: 1000  # ≥1,000
+    min_open_interest: 500  # ≥500
+    symbols: ["SPX", "XSP"]
+  
+  # Risk-free rate for pricing
+  risk_free_rate: 0.05
+  
+  # Maximum option contracts to subscribe to
+  max_contracts: 500
+
+# Use paper trading account
+trading:
+  account_type: paper
+  max_position_size: 10000
+
+# Standard filters for paper trading
+strategy:
+  filters:
+    volume_min: 100
+    oi_min: 50
+
+risk:
+  daily_soft_stop_pct: 0.7
+  daily_hard_stop_pct: 1.5
+
+# Dashboard settings
+dashboard:
+  host: "127.0.0.1"
+  port: 8050
+  update_interval: 5  # seconds
+
+monitoring:
+  alerts_enabled: true
+  alert_channels:
+    - console
+    - email
