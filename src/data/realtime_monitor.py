@@ -46,10 +46,14 @@ class RealTimeOptionsMonitor:
     def start(self) -> bool:
         """Start the real-time monitoring system"""
         try:
-            # Connect to IB
-            if not self.ib_provider.connect_ib():
-                logger.error("Failed to connect to Interactive Brokers")
-                return False
+            # Connect to IB (skip if using mock data)
+            use_mock = self.config.get('data', {}).get('use_mock', False)
+            if not use_mock:
+                if not self.ib_provider.connect_ib():
+                    logger.error("Failed to connect to Interactive Brokers")
+                    return False
+            else:
+                logger.info("Using mock data - skipping IB connection")
                 
             # Subscribe to underlying data
             for symbol in self.underlying_symbols:

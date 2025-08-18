@@ -141,12 +141,18 @@ class OptionsScreener:
         
         distance_from_atm_pct = abs(option.strike - underlying_price) / underlying_price
         
+        # Calculate risk metrics
+        notional_value = option.midpoint * 100 if option.midpoint > 0 else 0  # Options are per 100 shares
+        daily_theta_decay = abs(option.theta) * notional_value if option.theta else 0
+        
         return ScreenedOption(
             option_data=option,
             dte=dte,
             moneyness=moneyness,
             spread_width_pct=spread_width_pct,
-            distance_from_atm_pct=distance_from_atm_pct
+            distance_from_atm_pct=distance_from_atm_pct,
+            notional_value=notional_value,
+            daily_theta_decay=daily_theta_decay
         )
         
     def _calculate_dte(self, expiry_str: str) -> int:
