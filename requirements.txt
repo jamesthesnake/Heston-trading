@@ -20,12 +20,20 @@ redis==4.6.0
 # Web & Dashboard
 dash==2.11.1
 dash-bootstrap-components==1.4.2
+dash-table==5.0.0
 plotly==5.15.0
 websocket-client==1.6.1
 
-# Monitoring
+# Monitoring & Alerting
 prometheus-client==0.17.1
 psutil==5.9.5
+smtplib2==0.2.1
+requests==2.31.0
+
+# Strategy Components
+filterpy==1.4.5  # Kalman filtering for signal engine
+statsmodels==0.14.0  # Statistical analysis
+quantlib==1.31  # Quantitative finance library
 
 # Testing
 pytest==7.4.0

@@ -7,7 +7,8 @@ from scipy.optimize import minimize, differential_evolution
 from typing import Dict, List, Tuple, Optional
 import logging
 from datetime import datetime
-from .heston_model import HestonModel
+from .heston_strategy import HestonModel
+from .dividend_extractor import DividendExtractor
 
 logger = logging.getLogger(__name__)
 

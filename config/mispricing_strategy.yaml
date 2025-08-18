@@ -1,0 +1,300 @@
+# SPX/XSP Options Mispricing Strategy Configuration
+# Production-ready configuration implementing your detailed strategy requirements
+
+# Strategy Core Parameters
+strategy:
+  name: "SPX_XSP_Mispricing"
+  version: "1.0"
+  
+  # Timing intervals
+  calibration_interval_min: 10      # Calibrate every 10 minutes
+  signal_interval_sec: 5            # Generate signals every 5 seconds
+  hedge_check_interval_sec: 30      # Check delta hedge every 30 seconds
+  
+  # Market hours (Eastern Time, 24-hour format)
+  market_open_hour: 9.5            # 9:30 AM
+  market_close_hour: 16.0          # 4:00 PM
+  tod_block_min: 15                # Block trading 15 min from open/close
+  
+  # Execution parameters
+  max_slippage_bps: 15             # Maximum 15 basis points slippage
+  order_timeout_sec: 10            # Cancel orders after 10 seconds
+  midpoint_move_threshold_bps: 5   # Replace order if mid moves 5 bps
+
+# Options Screening Criteria (exactly as specified)
+screening:
+  # Time to expiration
+  min_dte: 10
+  max_dte: 50
+  
+  # Strike range around ATM
+  strike_range_pct: 0.09           # ±9% around current spot
+  
+  # Spread constraints
+  max_spread_width_pct: 0.10       # ≤10% of midpoint
+  
+  # Minimum pricing
+  min_mid_price: 0.20              # ≥$0.20
+  
+  # Liquidity requirements
+  min_volume: 1000                 # ≥1,000 contracts
+  min_open_interest: 500           # ≥500 contracts
+  
+  # Target symbols
+  symbols: ["SPX", "XSP"]
+
+# Dividend Yield Extraction (Put-Call Parity)
+dividend_extraction:
+  # ATM selection criteria
+  atm_tolerance: 0.01              # |log(K/S)| ≤ 0.01
+  min_dte: 25                      # 25-35 days for dividend extraction
+  max_dte: 35
+  
+  # EMA smoothing
+  ema_halflife_min: 30             # 30-minute half-life
+  
+  # Bounds (annual)
+  min_yield: -0.05                 # -5% minimum
+  max_yield: 0.05                  # +5% maximum
+
+# Heston Model Calibration
+calibration:
+  # Parameter bounds
+  bounds:
+    theta: [0.02, 0.08]            # Long-term variance (2%-8%)
+    kappa: [0.5, 5.0]              # Mean reversion speed
+    xi: [0.1, 1.0]                 # Vol of vol
+    rho: [-0.95, -0.05]            # Correlation
+    v0: [0.01, 0.1]                # Initial variance
+  
+  # Quality control thresholds
+  min_rmse_improvement_pct: 2.0    # ≥2% RMSE improvement
+  min_rmse_improvement_abs: 0.002  # OR ≥0.20 vol points absolute
+  max_arbitrage_violations: 5      # Allow up to 5 violations
+  max_local_rmse_multiplier: 1.25  # Local RMSE spike threshold
+  
+  # Regularization
+  alpha0: 1.0                      # Base regularization parameter
+  resid_ref: 1.0                   # Reference residual for adaptive alpha
+  
+  # Weighting
+  weights:
+    liquid_bias: 1.5               # Bias toward liquid strikes
+
+# Signal Generation
+signals:
+  # Exit criteria
+  exit_abs_z: 1.0                  # Exit when |z-score| < 1.0
+  
+  # Entry thresholds
+  percentile: 0.98                 # 98th percentile threshold
+  window_hours: 3                  # Use last 3 hours of data
+  
+  # Kalman filter parameters
+  kalman_q: 0.02                   # Process noise
+  kalman_r: 1.0                    # Measurement noise
+  
+  # Neighborhood definition
+  nbhd_k_abs: 0.02                 # ±0.02 log-moneyness
+  nbhd_days_abs: 5                 # ±5 days maturity
+  min_samples: 100                 # Minimum samples for percentile
+  
+  # Time-of-day blocking
+  tod_block_min: 15                # Block first/last 15 minutes
+  
+  # Volatility regime adjustment
+  vol_regime_threshold: 2.0        # 2x implied vol threshold
+  vol_regime_duration_min: 2       # For 2+ minutes
+  vol_regime_percentile: 0.99      # Raise to 99th percentile
+
+# Position Sizing with VIX Scaling
+position_sizing:
+  # Base limits per trade
+  vega_limit: 300                  # $300 per 1 vol point move
+  gamma_limit: 250                 # $250 for 1% spot move
+  dollar_limit: 20000              # $20k notional maximum
+  
+  # Liquidity constraints
+  max_size_pct: 0.15               # 15% of displayed size
+  max_volume_pct: 0.05             # 5% of average daily volume
+  
+  # VIX-based multipliers
+  vix_thresholds:
+    low: 15                        # VIX < 15
+    medium: 25                     # VIX 15-25
+    high: 35                       # VIX 25-35
+  
+  vix_multipliers:
+    low: 1.0                       # 100% size
+    medium: 0.75                   # 75% size
+    high: 0.50                     # 50% size
+    extreme: 0.0                   # 0% size (VIX > 35)
+  
+  # Portfolio limits
+  max_portfolio_vega: 2500         # $2,500 total vega
+  max_portfolio_gamma: 2000        # $2,000 total gamma (1% move)
+  max_normalized_delta: 0.05       # |Delta| ≤ 0.05 (normalized)
+  
+  # Account parameters
+  account_equity: 1000000          # $1M account equity
+  
+  # Concentration limits
+  max_expiry_notional: 250000      # $250k per expiry
+  
+  # Bucket limits (DTE × Moneyness)
+  bucket_limits:
+    "10-20_ITM": 50000
+    "10-20_ATM": 100000
+    "10-20_OTM": 75000
+    "20-35_ITM": 75000
+    "20-35_ATM": 150000
+    "20-35_OTM": 100000
+    "35-50_ITM": 100000
+    "35-50_ATM": 200000
+    "35-50_OTM": 125000
+
+# Delta Hedging
+delta_hedging:
+  # Delta band parameters
+  target_delta: 0.0                # Target normalized delta
+  delta_band: 0.05                 # |Normalized Delta| ≤ 0.05
+  new_fill_threshold: 0.75         # 0.75× band for new fills
+  spot_move_bps: 10                # 10 basis points spot move trigger
+  
+  # Instrument selection
+  spy_spread_threshold_bps: 3      # Use ES if SPY spread > 3 bps
+  
+  # ES contract specifications
+  es_multiplier: 50                # $50 per point
+  es_tick_size: 0.25               # 0.25 points
+  es_tick_value: 12.50             # $12.50 per tick
+  
+  # Account parameters
+  account_equity: 1000000          # For delta normalization
+
+# Risk Management
+risk_management:
+  # Account parameters
+  starting_equity: 1000000         # $1M starting equity
+  
+  # Daily stop losses
+  soft_stop_pct: 0.005             # -0.5% soft stop (block entries)
+  hard_stop_pct: 0.010             # -1.0% hard stop (close all)
+  
+  # Position limits (same as position_sizing for consistency)
+  max_portfolio_vega: 2500
+  max_portfolio_gamma: 2000
+  max_normalized_delta: 0.05
+  
+  # Concentration limits
+  max_expiry_notional: 250000
+  
+  # Emergency conditions
+  data_staleness_sec: 1.5          # Data staleness > 1.5 seconds
+  model_rmse_multiplier: 1.5       # Model RMSE > 1.5× baseline
+
+# Macro Event Handling
+macro_events:
+  # Event types and blackout periods
+  fomc:
+    blackout_before_min: 2         # 2 minutes before
+    blackout_after_min: 3          # 3 minutes after
+    position_size_multiplier: 0.5  # Halve position sizes entire session
+  
+  cpi:
+    blackout_before_min: 2
+    blackout_after_min: 3
+    position_size_multiplier: 0.5
+  
+  # General macro event handling
+  default_blackout_before_min: 2
+  default_blackout_after_min: 3
+  default_size_multiplier: 0.5
+
+# Data Feed Configuration
+data_feed:
+  # Update intervals
+  underlying_update_sec: 5         # SPX, SPY, VIX, ES every 5 seconds
+  options_update_sec: 5            # Options chain every 5 seconds
+  rates_update_min: 15             # Interest rates every 15 minutes
+  
+  # Data validation
+  max_staleness_sec: 1.5           # Maximum data age
+  price_change_threshold: 0.10     # 10% price change validation
+  
+  # Symbols to monitor
+  underlyings: ["SPX", "SPY", "VIX"]
+  futures: ["ES"]
+  rates: ["USD_OIS"]
+
+# Execution Engine
+execution:
+  # Order types
+  default_order_type: "LMT"        # Limit orders
+  time_in_force: "DAY"             # Day orders
+  
+  # Pricing
+  use_midpoint: true               # Use midpoint for limit orders
+  max_slippage_bps: 15             # Maximum slippage tolerance
+  
+  # Order management
+  cancel_replace_threshold_bps: 5   # Cancel/replace if mid moves 5 bps
+  order_timeout_sec: 10            # Cancel unfilled orders after 10 seconds
+  max_order_attempts: 3            # Maximum retry attempts
+
+# Monitoring and Alerting
+monitoring:
+  # Performance targets
+  target_sharpe: 1.0               # Minimum Sharpe ratio
+  max_drawdown_pct: 0.04           # Maximum 4% drawdown
+  target_hit_rate: 0.50            # 45-55% hit rate target
+  
+  # Alert thresholds
+  alerts:
+    critical:
+      - "data_disconnection"
+      - "hard_stop_triggered"
+      - "model_rmse_spike"
+    
+    high_priority:
+      - "soft_stop_triggered"
+      - "order_rejections"
+      - "volatility_regime_change"
+    
+    medium_priority:
+      - "calibration_rejection"
+      - "concentration_warning"
+      - "hedge_deviation"
+
+# Backtesting Configuration
+backtesting:
+  # Rolling window parameters
+  window_days: 20                  # 20-day rolling windows
+  overlap_days: 1                  # 1-day overlap between windows
+  
+  # Performance metrics
+  calculate_sharpe: true
+  calculate_max_drawdown: true
+  calculate_hit_rate: true
+  calculate_profit_factor: true
+  
+  # Transaction costs
+  option_commission: 1.0           # $1 per contract
+  stock_commission: 0.005          # $0.005 per share
+  slippage_bps: 10                 # 10 bps average slippage
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # Log files
+  files:
+    main: "logs/mispricing_strategy.log"
+    trades: "logs/trades.log"
+    calibration: "logs/calibration.log"
+    risk: "logs/risk.log"
+  
+  # Rotation
+  max_bytes: 10485760              # 10MB
+  backup_count: 5
