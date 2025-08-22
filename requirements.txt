@@ -27,7 +27,7 @@ websocket-client==1.6.1
 # Monitoring & Alerting
 prometheus-client==0.17.1
 psutil==5.9.5
-smtplib2==0.2.1
+# smtplib2==0.2.1  # Invalid package - smtplib is built-in
 requests==2.31.0
 
 # Strategy Components

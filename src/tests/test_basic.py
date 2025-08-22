@@ -5,14 +5,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 def test_imports():
     """Test that all modules can be imported"""
-    from src.strategy import HestonStrategy
+    from src.strategy import MispricingStrategy
     from src.data import DataFeedManager
     from src.monitoring import Dashboard, MetricsServer
     from src.risk import RiskManager
     from src.execution import OrderManager, ExecutionEngine
     from src.utils import DataValidator
     
-    assert HestonStrategy is not None
+    assert MispricingStrategy is not None
     assert DataFeedManager is not None
     assert Dashboard is not None
     assert RiskManager is not None

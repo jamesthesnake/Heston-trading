@@ -5,6 +5,8 @@ import logging
 from datetime import datetime
 from typing import Dict, Optional
 import random
+import asyncio
+from .enhanced_mock_generator import enhanced_mock
 
 logger = logging.getLogger(__name__)
 
@@ -33,38 +35,56 @@ class DataFeedManager:
         return self.is_connected
     
     def _generate_mock_data(self):
-        """Generate mock market data"""
-        self.current_data = {
-            'SPX': {
-                'bid': 4999.50,
-                'ask': 5000.50,
-                'last': 5000.00,
-                'timestamp': datetime.now()
-            },
-            'VIX': {
-                'last': 15.5 + random.random(),
-                'timestamp': datetime.now()
-            },
-            'options': []
-        }
+        """Generate enhanced realistic mock market data"""
+        # Generate underlying data
+        underlying_data = enhanced_mock.generate_underlying_snapshot()
         
-        # Generate mock options
-        for strike in range(4900, 5100, 25):
-            for option_type in ['C', 'P']:
-                self.current_data['options'].append({
-                    'strike': strike,
-                    'type': option_type,
-                    'bid': 20 + random.random() * 5,
-                    'ask': 21 + random.random() * 5,
-                    'iv': 0.15 + random.random() * 0.05,
-                    'volume': random.randint(100, 5000)
-                })
+        # Generate options data
+        options_data = enhanced_mock.generate_options_snapshot(underlying_data)
+        
+        # Generate trading signals
+        signals = enhanced_mock.generate_trading_signals(underlying_data, options_data)
+        
+        # Generate positions
+        positions = enhanced_mock.generate_positions()
+        
+        self.current_data = {
+            'underlying': underlying_data,
+            'options': options_data,
+            'signals': signals,
+            'positions': positions,
+            'market_state': {
+                'session': self._get_market_session(),
+                'sentiment': enhanced_mock.market_sentiment,
+                'volatility_regime': enhanced_mock.volatility_regime,
+                'timestamp': datetime.now()
+            }
+        }
+    
+    def _get_market_session(self) -> str:
+        """Determine current market session"""
+        current_hour = datetime.now().hour
+        
+        if 9 <= current_hour < 16:
+            return "open"
+        elif 16 <= current_hour < 20:
+            return "after_hours"
+        else:
+            return "closed"
     
     def get_snapshot(self) -> Optional[Dict]:
         """Get current market snapshot"""
         if self.use_mock:
             self._generate_mock_data()
         return self.current_data
+    
+    async def stream_data(self, update_interval: float = 1.0):
+        """Stream live data updates"""
+        while self.is_connected:
+            if self.use_mock:
+                self._generate_mock_data()
+                yield self.current_data
+            await asyncio.sleep(update_interval)
     
     def disconnect(self):
         """Disconnect from data source"""

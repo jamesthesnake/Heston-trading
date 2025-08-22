@@ -66,7 +66,7 @@ def main(env, config, dashboard, mock):
             config_data['data']['use_mock'] = True
         
         # Import here to catch any import errors
-        from src.strategy import HestonStrategy
+        from src.strategy import MispricingStrategy
         from src.data import DataFeedManager
         from src.monitoring import Dashboard, MetricsServer
         
@@ -82,7 +82,7 @@ def main(env, config, dashboard, mock):
             return 1
         
         # Initialize strategy
-        strategy = HestonStrategy(config_data, feed_manager)
+        strategy = MispricingStrategy(config_data)
         logger.info("✓ Strategy initialized")
         
         # Start metrics server

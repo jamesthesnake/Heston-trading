@@ -404,7 +404,7 @@ class OptionsDashboard:
         
         # Run dashboard
         logger.info(f"Starting dashboard at http://{host}:{port}")
-        self.app.run_server(host=host, port=port, debug=debug)
+        self.app.run(host=host, port=port, debug=debug)
     
     def stop(self):
         """Stop the dashboard and monitor"""

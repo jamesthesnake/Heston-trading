@@ -68,6 +68,24 @@ class MispricingStrategy:
         # Performance tracking
         self.trade_history = []
         self.pnl_history = []
+    
+    async def start(self):
+        """Start the strategy (entry point for the system)"""
+        logger.info("MispricingStrategy started - running in mock mode")
+        self.state.is_running = True
+        
+        # In a real implementation, this would start the strategy loop
+        # For now, just keep the strategy running
+        try:
+            while self.state.is_running:
+                await asyncio.sleep(1)  # Keep alive
+        except KeyboardInterrupt:
+            logger.info("Strategy stopping...")
+            self.state.is_running = False
+    
+    def stop(self):
+        """Stop the strategy"""
+        self.state.is_running = False
         
     async def run_strategy_loop(self, market_data_feed):
         """

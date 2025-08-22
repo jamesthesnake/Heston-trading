@@ -124,14 +124,20 @@ class Dashboard:
         if self.feed_manager:
             try:
                 snapshot = self.feed_manager.get_snapshot()
-                if snapshot and 'SPX' in snapshot:
-                    spx = snapshot['SPX']
-                    vix = snapshot.get('VIX', {}).get('last', 0)
-                    market_text = f"SPX: ${spx['last']:.2f}\nVIX: {vix:.2f}\nLast Update: {datetime.now().strftime('%H:%M:%S')}"
+                if snapshot and 'underlying' in snapshot:
+                    underlying = snapshot['underlying']
+                    spx = underlying.get('SPX', {})
+                    spy = underlying.get('SPY', {})
+                    vix = underlying.get('VIX', {})
+                    
+                    market_text = f"SPX: ${spx.get('last', 0):.2f} ({spx.get('change_pct', 0):+.1f}%)\n"
+                    market_text += f"SPY: ${spy.get('last', 0):.2f} ({spy.get('change_pct', 0):+.1f}%)\n"
+                    market_text += f"VIX: {vix.get('last', 0):.1f} ({vix.get('change_pct', 0):+.1f}%)\n"
+                    market_text += f"Updated: {datetime.now().strftime('%H:%M:%S')}"
                 else:
                     market_text = "No market data"
-            except:
-                market_text = "Feed error"
+            except Exception as e:
+                market_text = f"Feed error: {str(e)}"
         else:
             market_text = "Feed not connected"
         
@@ -283,6 +289,61 @@ class Dashboard:
     
     def _create_positions_table(self):
         """Create positions table"""
+        # Try to get positions from feed manager's enhanced data
+        if self.feed_manager:
+            try:
+                snapshot = self.feed_manager.get_snapshot()
+                if snapshot and 'positions' in snapshot:
+                    positions = snapshot['positions']
+                    
+                    if not positions:
+                        return html.P("No open positions", style={'color': '#95a5a6'})
+                    
+                    # Create table data
+                    table_data = []
+                    for pos in positions:
+                        side = 'LONG' if pos['quantity'] > 0 else 'SHORT'
+                        color = 'green' if pos['pnl'] > 0 else 'red' if pos['pnl'] < 0 else 'gray'
+                        
+                        table_data.append({
+                            'Symbol': f"{pos['symbol']} {pos['strike']:.0f}{pos['type']}",
+                            'Side': side,
+                            'Qty': abs(pos['quantity']),
+                            'Entry': f"${pos['entry_price']:.2f}",
+                            'Current': f"${pos['current_price']:.2f}",
+                            'P&L': f"${pos['pnl']:.0f}",
+                            'P&L%': f"{pos['pnl_pct']:+.1f}%"
+                        })
+                    
+                    return dash_table.DataTable(
+                        data=table_data,
+                        columns=[
+                            {'name': 'Contract', 'id': 'Symbol'},
+                            {'name': 'Side', 'id': 'Side'},
+                            {'name': 'Qty', 'id': 'Qty'},
+                            {'name': 'Entry', 'id': 'Entry'},
+                            {'name': 'Current', 'id': 'Current'},
+                            {'name': 'P&L', 'id': 'P&L'},
+                            {'name': 'P&L%', 'id': 'P&L%'}
+                        ],
+                        style_cell={'textAlign': 'center', 'fontSize': '12px'},
+                        style_data_conditional=[
+                            {
+                                'if': {'filter_query': '{P&L} contains -'},
+                                'backgroundColor': '#ffebee',
+                                'color': 'red',
+                            },
+                            {
+                                'if': {'filter_query': '{P&L} contains + || {P&L} contains $1 || {P&L} contains $2 || {P&L} contains $3 || {P&L} contains $4 || {P&L} contains $5 || {P&L} contains $6 || {P&L} contains $7 || {P&L} contains $8 || {P&L} contains $9'},
+                                'backgroundColor': '#e8f5e8',
+                                'color': 'green',
+                            }
+                        ]
+                    )
+            except Exception as e:
+                return html.P(f"Position data error: {str(e)}", style={'color': 'orange'})
+        
+        # Fallback to old strategy positions
         if not self.strategy or not hasattr(self.strategy, 'state'):
             return html.P("No positions data")
         
@@ -319,7 +380,7 @@ class Dashboard:
     def start(self):
         """Start the enhanced dashboard in a separate thread"""
         def run_dash():
-            self.app.run_server(host='0.0.0.0', port=self.port, debug=False)
+            self.app.run(host='0.0.0.0', port=self.port, debug=False)
         
         thread = threading.Thread(target=run_dash, daemon=True)
         thread.start()
