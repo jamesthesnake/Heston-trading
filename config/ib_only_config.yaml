@@ -1,0 +1,58 @@
+# Interactive Brokers Only Configuration
+# Direct IB connection without mock fallback
+
+data_provider:
+  type: "interactive_brokers"
+  host: "127.0.0.1"
+  port: 7497
+  client_id: 1
+
+strategy:
+  initial_params:
+    theta: 0.04
+    kappa: 2.0
+    xi: 0.3
+    rho: -0.7
+    v0: 0.04
+  
+  calibration_frequency: 600  # 10 minutes for IB data
+  calibration_method: "least_squares"
+  max_calibration_time: 60
+
+mispricing_detection:
+  min_mispricing_pct: 10.0
+  strong_mispricing_pct: 25.0
+  min_signal_confidence: 85.0
+  max_signals_per_cycle: 5
+  min_option_volume: 100
+  min_time_to_expiry: 21
+
+risk_management:
+  max_portfolio_delta: 20000.0
+  max_position_size: 25
+  max_daily_loss: 3000.0
+  stop_loss_pct: 0.25
+  position_size_method: "kelly"
+  risk_free_rate: 0.05
+
+delta_hedging:
+  delta_band: 0.02
+  hedge_frequency: 20
+  hedge_instrument: "SPY"
+  account_equity: 1000000.0
+  hedge_ratio: 1.0
+
+dashboard:
+  port: 8050
+  host: "127.0.0.1"
+  debug: false
+  auto_reload: false
+  update_interval: 10
+
+logging:
+  level: "WARNING"  # Less verbose for production
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file_handler: true
+  log_directory: "logs"
+  max_file_size: 10485760
+  backup_count: 20

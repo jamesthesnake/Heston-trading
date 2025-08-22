@@ -1,0 +1,59 @@
+dashboard:
+  auto_reload: true
+  debug: true
+  host: 127.0.0.1
+  port: 8050
+  update_interval: 2
+data_provider:
+  client_id: 1
+  fallback_to_mock: true
+  host: 127.0.0.1
+  ib_retry_interval: 300
+  ib_timeout: 10
+  max_ib_attempts: 3
+  port: 7497
+  prefer_ib: true
+  type: mock
+  update_interval: 1.0
+  volatility_factor: 1.5
+delta_hedging:
+  account_equity: 1000000.0
+  delta_band: 0.05
+  hedge_frequency: 60
+  hedge_instrument: SPY
+  hedge_ratio: 1.0
+logging:
+  backup_count: 5
+  file_handler: true
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  level: INFO
+  log_directory: logs
+  max_file_size: 10485760
+mispricing_detection:
+  max_signals_per_cycle: 20
+  min_mispricing_pct: 5.0
+  min_option_volume: 10
+  min_signal_confidence: 70.0
+  min_time_to_expiry: 7
+  strong_mispricing_pct: 15.0
+risk_management:
+  max_daily_loss: 10000.0
+  max_portfolio_delta: 50000.0
+  max_position_size: 100
+  position_size_method: kelly
+  risk_free_rate: 0.05
+  stop_loss_pct: 0.5
+strategy:
+  calibration_frequency: 300
+  calibration_method: least_squares
+  initial_params:
+    kappa: 2.0
+    rho: -0.7
+    theta: 0.04
+    v0: 0.04
+    xi: 0.3
+  max_calibration_time: 30
+  max_daily_risk: 5000.0
+  max_position_size: 10
+  min_signal_confidence: 70.0
+  position_size_method: kelly

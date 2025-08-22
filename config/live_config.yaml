@@ -1,0 +1,69 @@
+# Live Trading Configuration - Interactive Brokers
+# For real market data and live trading
+
+data_provider:
+  type: "hybrid"
+  prefer_ib: true
+  fallback_to_mock: true
+  ib_timeout: 15
+  ib_retry_interval: 300
+  max_ib_attempts: 5
+  
+  # Interactive Brokers settings
+  host: "127.0.0.1"
+  port: 7497  # Paper trading port (use 7496 for live)
+  client_id: 1
+  
+  # Mock fallback settings
+  update_interval: 2.0
+  volatility_factor: 1.0
+
+strategy:
+  initial_params:
+    theta: 0.04
+    kappa: 2.0
+    xi: 0.3
+    rho: -0.7
+    v0: 0.04
+  
+  calibration_frequency: 300
+  calibration_method: "least_squares"
+  max_calibration_time: 45  # More time for live calibration
+
+mispricing_detection:
+  min_mispricing_pct: 8.0     # Higher threshold for live trading
+  strong_mispricing_pct: 20.0
+  min_signal_confidence: 80.0  # Higher confidence required
+  max_signals_per_cycle: 10    # More conservative
+  min_option_volume: 50        # Higher volume requirement
+  min_time_to_expiry: 14       # At least 2 weeks
+
+risk_management:
+  max_portfolio_delta: 25000.0  # More conservative
+  max_position_size: 50
+  max_daily_loss: 5000.0        # Lower loss limit
+  stop_loss_pct: 0.3           # Tighter stop loss
+  position_size_method: "kelly"
+  risk_free_rate: 0.05
+
+delta_hedging:
+  delta_band: 0.03             # Tighter hedging band
+  hedge_frequency: 30          # More frequent hedging
+  hedge_instrument: "SPY"
+  account_equity: 1000000.0
+  hedge_ratio: 1.0
+
+dashboard:
+  port: 8050
+  host: "127.0.0.1"
+  debug: false
+  auto_reload: false
+  update_interval: 5
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file_handler: true
+  log_directory: "logs"
+  max_file_size: 10485760
+  backup_count: 10  # Keep more logs for live trading
