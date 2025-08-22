@@ -50,6 +50,272 @@ class DeltaHedger:
             'timestamp': None
         }
         
+        # Portfolio tracking
+        self.portfolio_delta = 0.0
+        self.hedging_history = []
+        self.rebalance_count = 0
+    
+    def rebalance_portfolio(self, active_trades: Dict, options_data: List[Dict], 
+                           underlying_data: Dict) -> Dict:
+        """
+        Real-time portfolio delta hedging
+        
+        Args:
+            active_trades: Dictionary of active option trades
+            options_data: Current options market data
+            underlying_data: Current underlying prices
+            
+        Returns:
+            Hedging result with actions taken
+        """
+        try:
+            # Calculate current portfolio delta
+            portfolio_delta = self._calculate_portfolio_delta(active_trades, options_data, underlying_data)
+            self.portfolio_delta = portfolio_delta
+            
+            # Get current spot price
+            spot_price = underlying_data.get('SPX', {}).get('last', 5000.0)
+            
+            # Check if hedging is needed
+            hedge_decision = self.should_hedge(portfolio_delta, spot_price)
+            
+            if not hedge_decision['should_hedge']:
+                return {
+                    'action': 'no_hedge_needed',
+                    'portfolio_delta': portfolio_delta,
+                    'normalized_delta': abs(portfolio_delta) / self.account_equity,
+                    'reason': 'Delta within acceptable band',
+                    'current_hedge': self.current_hedge_position.copy()
+                }
+            
+            # Execute hedge
+            hedge_result = self._execute_hedge(portfolio_delta, underlying_data)
+            
+            # Update tracking
+            self.last_hedge_time = datetime.now()
+            self.last_spot_price = spot_price
+            self.rebalance_count += 1
+            
+            # Record in history
+            hedge_record = {
+                'timestamp': datetime.now(),
+                'portfolio_delta': portfolio_delta,
+                'hedge_action': hedge_result.get('action'),
+                'hedge_quantity': hedge_result.get('quantity', 0),
+                'hedge_instrument': hedge_result.get('instrument'),
+                'spot_price': spot_price,
+                'reason': hedge_decision['reason']
+            }
+            self.hedging_history.append(hedge_record)
+            
+            # Keep only recent history
+            if len(self.hedging_history) > 100:
+                self.hedging_history = self.hedging_history[-50:]
+            
+            return hedge_result
+            
+        except Exception as e:
+            logger.error(f"Error in portfolio rebalancing: {e}")
+            return {
+                'action': 'error',
+                'error': str(e),
+                'portfolio_delta': 0,
+                'current_hedge': self.current_hedge_position.copy()
+            }
+    
+    def _calculate_portfolio_delta(self, active_trades: Dict, options_data: List[Dict], 
+                                 underlying_data: Dict) -> float:
+        """Calculate total portfolio delta from active trades"""
+        total_delta = 0.0
+        spot_price = underlying_data.get('SPX', {}).get('last', 5000.0)
+        
+        for trade in active_trades.values():
+            try:
+                # Find current option data
+                option_data = None
+                for option in options_data:
+                    if (option.get('symbol') == trade.symbol and
+                        option.get('strike') == trade.strike and
+                        option.get('expiry') == trade.expiry and
+                        option.get('type') == trade.option_type):
+                        option_data = option
+                        break
+                
+                if not option_data:
+                    continue
+                
+                # Get delta from market data or calculate
+                delta = option_data.get('delta', 0)
+                if delta == 0:
+                    # Fallback delta calculation
+                    delta = self._estimate_delta(trade, spot_price)
+                
+                # Calculate position delta (dollar delta)
+                position_delta = delta * trade.quantity * 100 * spot_price  # 100 shares per contract
+                
+                # Adjust for trade direction
+                if trade.direction.value == 'sell':
+                    position_delta *= -1
+                
+                total_delta += position_delta
+                
+            except Exception as e:
+                logger.debug(f"Error calculating delta for trade {trade.trade_id}: {e}")
+                continue
+        
+        # Add current hedge position delta
+        if self.current_hedge_position['quantity'] != 0:
+            hedge_delta = self._calculate_hedge_delta(underlying_data)
+            total_delta += hedge_delta
+        
+        return total_delta
+    
+    def _estimate_delta(self, trade, spot_price: float) -> float:
+        """Estimate option delta when not available in market data"""
+        try:
+            from datetime import datetime
+            import math
+            from scipy.stats import norm
+            
+            # Basic Black-Scholes delta calculation
+            strike = trade.strike
+            expiry_date = datetime.strptime(trade.expiry, "%Y%m%d")
+            days_to_expiry = (expiry_date - datetime.now()).days
+            T = max(days_to_expiry / 365.0, 0.01)  # Minimum 1% of year
+            
+            r = 0.05  # Risk-free rate
+            q = 0.02  # Dividend yield
+            vol = 0.20  # Rough volatility estimate
+            
+            d1 = (math.log(spot_price / strike) + (r - q + 0.5 * vol**2) * T) / (vol * math.sqrt(T))
+            
+            if trade.option_type == 'C':
+                delta = math.exp(-q * T) * norm.cdf(d1)
+            else:  # Put
+                delta = -math.exp(-q * T) * norm.cdf(-d1)
+            
+            return delta
+            
+        except Exception as e:
+            logger.debug(f"Delta estimation failed: {e}")
+            # Fallback estimates
+            moneyness = spot_price / trade.strike
+            if trade.option_type == 'C':
+                if moneyness > 1.1:
+                    return 0.8  # Deep ITM call
+                elif moneyness > 0.9:
+                    return 0.5  # ATM call
+                else:
+                    return 0.2  # OTM call
+            else:  # Put
+                if moneyness < 0.9:
+                    return -0.8  # Deep ITM put
+                elif moneyness < 1.1:
+                    return -0.5  # ATM put
+                else:
+                    return -0.2  # OTM put
+    
+    def _execute_hedge(self, portfolio_delta: float, underlying_data: Dict) -> Dict:
+        """Execute hedge to neutralize portfolio delta"""
+        
+        # Calculate target hedge size
+        spot_price = underlying_data.get('SPX', {}).get('last', 5000.0)
+        spy_price = underlying_data.get('SPY', {}).get('last', 500.0)
+        
+        # Determine which instrument to use
+        instrument = self._select_hedge_instrument(underlying_data)
+        
+        if instrument == HedgeInstrument.SPY:
+            # Calculate SPY shares needed
+            # SPY delta = 1 (moves 1:1 with SPX approximately)
+            target_hedge_delta = -portfolio_delta  # Opposite to neutralize
+            spy_shares_needed = target_hedge_delta / spy_price
+            
+            # Round to nearest share
+            spy_shares = round(spy_shares_needed)
+            
+            if spy_shares == 0:
+                return {
+                    'action': 'no_hedge_needed',
+                    'reason': 'Calculated hedge size is zero',
+                    'portfolio_delta': portfolio_delta,
+                    'instrument': instrument.value
+                }
+            
+            # Update position
+            old_position = self.current_hedge_position.copy()
+            self.current_hedge_position.update({
+                'instrument': instrument.value,
+                'quantity': spy_shares,
+                'entry_price': spy_price,
+                'timestamp': datetime.now()
+            })
+            
+            return {
+                'action': 'hedge_executed',
+                'instrument': instrument.value,
+                'quantity': spy_shares,
+                'price': spy_price,
+                'old_position': old_position,
+                'new_position': self.current_hedge_position.copy(),
+                'portfolio_delta': portfolio_delta,
+                'target_delta_hedge': target_hedge_delta
+            }
+            
+        else:  # ES futures
+            # Calculate ES contracts needed
+            es_point_value = self.es_multiplier
+            target_hedge_delta = -portfolio_delta
+            es_contracts_needed = target_hedge_delta / (spot_price * es_point_value)
+            
+            # Round to nearest contract
+            es_contracts = round(es_contracts_needed)
+            
+            if es_contracts == 0:
+                return {
+                    'action': 'no_hedge_needed',
+                    'reason': 'Calculated hedge size is zero',
+                    'portfolio_delta': portfolio_delta,
+                    'instrument': instrument.value
+                }
+            
+            # Update position
+            old_position = self.current_hedge_position.copy()
+            self.current_hedge_position.update({
+                'instrument': instrument.value,
+                'quantity': es_contracts,
+                'entry_price': spot_price,  # ES price approximately equals SPX
+                'timestamp': datetime.now()
+            })
+            
+            return {
+                'action': 'hedge_executed',
+                'instrument': instrument.value,
+                'quantity': es_contracts,
+                'price': spot_price,
+                'old_position': old_position,
+                'new_position': self.current_hedge_position.copy(),
+                'portfolio_delta': portfolio_delta,
+                'target_delta_hedge': target_hedge_delta
+            }
+    
+    def _calculate_hedge_delta(self, underlying_data: Dict) -> float:
+        """Calculate delta contribution from current hedge position"""
+        if self.current_hedge_position['quantity'] == 0:
+            return 0.0
+        
+        instrument = self.current_hedge_position['instrument']
+        quantity = self.current_hedge_position['quantity']
+        
+        if instrument == 'SPY':
+            spy_price = underlying_data.get('SPY', {}).get('last', 500.0)
+            return quantity * spy_price  # SPY has delta ≈ 1
+        elif instrument == 'ES':
+            spot_price = underlying_data.get('SPX', {}).get('last', 5000.0)
+            return quantity * spot_price * self.es_multiplier  # ES delta
+        
+        return 0.0
+        
     def should_hedge(self, portfolio_delta: float, spot_price: float, 
                     new_fill_delta: Optional[float] = None) -> Dict[str, bool]:
         """

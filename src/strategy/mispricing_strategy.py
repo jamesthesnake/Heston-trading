@@ -70,18 +70,164 @@ class MispricingStrategy:
         self.pnl_history = []
     
     async def start(self):
-        """Start the strategy (entry point for the system)"""
-        logger.info("MispricingStrategy started - running in mock mode")
+        """Start the real Heston trading strategy"""
+        logger.info("MispricingStrategy started - implementing full Heston strategy")
         self.state.is_running = True
         
-        # In a real implementation, this would start the strategy loop
-        # For now, just keep the strategy running
+        # Import the new components
+        from .heston_pricing_engine import HestonPricingEngine
+        from .mispricing_detector import MispricingDetector
+        from .trade_executor import TradeExecutor
+        from .delta_hedger import DeltaHedger
+        
+        # Initialize strategy components
         try:
+            self.pricing_engine = HestonPricingEngine(self.config)
+            self.mispricing_detector = MispricingDetector(self.config)
+            self.trade_executor = TradeExecutor(self.config)
+            self.delta_hedger = DeltaHedger(self.config)
+            
+            logger.info("✓ All Heston strategy components initialized")
+            
+            # Strategy loop interval
+            loop_interval = self.config.get('strategy_loop_interval', 5.0)  # 5 seconds
+            
             while self.state.is_running:
-                await asyncio.sleep(1)  # Keep alive
+                try:
+                    await self._execute_strategy_cycle()
+                    await asyncio.sleep(loop_interval)
+                except Exception as e:
+                    logger.error(f"Error in strategy cycle: {e}")
+                    await asyncio.sleep(loop_interval * 2)  # Wait longer on error
+                    
         except KeyboardInterrupt:
             logger.info("Strategy stopping...")
+        except Exception as e:
+            logger.error(f"Strategy initialization failed: {e}")
+        finally:
             self.state.is_running = False
+            logger.info("MispricingStrategy stopped")
+    
+    async def _execute_strategy_cycle(self):
+        """Execute one complete Heston strategy cycle"""
+        
+        # This would normally get data from the feed manager
+        # For now, we'll use the enhanced mock data
+        from ..data.enhanced_mock_generator import enhanced_mock
+        
+        try:
+            # 1. Get current market data
+            underlying_data = enhanced_mock.generate_underlying_snapshot()
+            options_data = enhanced_mock.generate_options_snapshot(underlying_data)
+            
+            if not options_data:
+                logger.debug("No options data available for strategy cycle")
+                return
+            
+            # 2. Calculate theoretical prices using calibrated Heston model
+            theoretical_prices = self.pricing_engine.get_theoretical_prices(options_data, underlying_data)
+            
+            if not theoretical_prices:
+                logger.debug("No theoretical prices calculated")
+                return
+            
+            # 3. Detect mispricings
+            mispricing_signals = self.mispricing_detector.detect_mispricings(
+                options_data, theoretical_prices, underlying_data
+            )
+            
+            if mispricing_signals:
+                logger.info(f"Found {len(mispricing_signals)} mispricing signals")
+                
+                # Get signal summary
+                signal_summary = self.mispricing_detector.get_signal_summary(mispricing_signals)
+                logger.info(f"Signal summary: {signal_summary['strong_signals']} strong signals, "
+                          f"avg mispricing: {signal_summary['avg_mispricing']:.1f}%")
+            
+            # 4. Execute trades based on signals
+            if mispricing_signals:
+                executed_trades = self.trade_executor.execute_signals(
+                    mispricing_signals, options_data, underlying_data
+                )
+                
+                if executed_trades:
+                    logger.info(f"Executed {len(executed_trades)} new trades")
+            
+            # 5. Update existing positions
+            updated_trades = self.trade_executor.update_positions(options_data)
+            if updated_trades:
+                logger.info(f"Updated {len(updated_trades)} positions")
+            
+            # 6. Perform delta hedging
+            if self.trade_executor.active_trades:
+                hedge_result = self.delta_hedger.rebalance_portfolio(
+                    self.trade_executor.active_trades, options_data, underlying_data
+                )
+                
+                if hedge_result.get('action') == 'hedge_executed':
+                    logger.info(f"Delta hedge executed: {hedge_result.get('quantity')} "
+                              f"{hedge_result.get('instrument')}")
+            
+            # 7. Update strategy state
+            self._update_strategy_metrics()
+            
+        except Exception as e:
+            logger.error(f"Strategy cycle error: {e}")
+            raise
+    
+    def _update_strategy_metrics(self):
+        """Update strategy performance metrics"""
+        try:
+            # Get portfolio summary
+            portfolio_summary = self.trade_executor.get_portfolio_summary()
+            
+            # Update strategy state
+            self.state.daily_pnl = portfolio_summary.get('daily_pnl', 0)
+            
+            # Update position count
+            self.state.positions = list(self.trade_executor.active_trades.values())
+            
+            # Store latest metrics
+            self.pnl_history.append({
+                'timestamp': datetime.now(),
+                'pnl': portfolio_summary.get('total_pnl', 0),
+                'daily_pnl': portfolio_summary.get('daily_pnl', 0),
+                'active_positions': portfolio_summary.get('active_positions', 0),
+                'win_rate': portfolio_summary.get('win_rate', 0)
+            })
+            
+            # Keep only recent history
+            if len(self.pnl_history) > 1000:
+                self.pnl_history = self.pnl_history[-500:]
+                
+        except Exception as e:
+            logger.error(f"Error updating strategy metrics: {e}")
+    
+    def get_strategy_status(self) -> Dict:
+        """Get current strategy status for dashboard"""
+        try:
+            portfolio_summary = getattr(self.trade_executor, 'get_portfolio_summary', lambda: {})()
+            calibration_status = getattr(self.pricing_engine, 'get_calibration_status', lambda: {})()
+            
+            return {
+                'is_running': self.state.is_running,
+                'position_count': len(getattr(self.trade_executor, 'active_trades', {})),
+                'risk_level': 'normal',  # Could be enhanced based on portfolio metrics
+                'daily_pnl': portfolio_summary.get('daily_pnl', 0),
+                'total_pnl': portfolio_summary.get('total_pnl', 0),
+                'win_rate': portfolio_summary.get('win_rate', 0),
+                'calibration_status': calibration_status.get('status', 'unknown'),
+                'portfolio_delta': getattr(self.delta_hedger, 'portfolio_delta', 0),
+                'hedge_position': getattr(self.delta_hedger, 'current_hedge_position', {})
+            }
+        except Exception as e:
+            logger.error(f"Error getting strategy status: {e}")
+            return {
+                'is_running': self.state.is_running,
+                'position_count': 0,
+                'risk_level': 'error',
+                'error': str(e)
+            }
     
     def stop(self):
         """Stop the strategy"""

@@ -35,6 +35,118 @@ class HestonCalibrator:
         self.rejection_count = 0
         self.rejection_reasons = []
         
+    def calibrate_to_live_data(self, options_data: List[Dict], underlying_data: Dict) -> Dict:
+        """
+        Calibrate Heston model to live market data
+        
+        Args:
+            options_data: List of option contracts with market data
+            underlying_data: Current underlying prices
+            
+        Returns:
+            Calibration results with params, RMSE, and QC status
+        """
+        try:
+            # Convert market data to calibration format
+            iv_surface = self._prepare_market_data(options_data, underlying_data)
+            
+            if iv_surface.empty:
+                logger.warning("No valid options data for calibration")
+                return self._get_fallback_params()
+            
+            # Get spot price and curves
+            spot = underlying_data.get('SPX', {}).get('last', 5000.0)
+            r_curve = {0.25: 0.05, 0.5: 0.05, 1.0: 0.05}  # Flat rate curve
+            q_curve = {0.25: 0.02, 0.5: 0.02, 1.0: 0.02}  # Flat dividend yield
+            
+            return self.calibrate(iv_surface, spot, r_curve, q_curve)
+            
+        except Exception as e:
+            logger.error(f"Live calibration failed: {e}")
+            return self._get_fallback_params()
+    
+    def _prepare_market_data(self, options_data: List[Dict], underlying_data: Dict) -> pd.DataFrame:
+        """Convert live market data to calibration format"""
+        calibration_data = []
+        spot = underlying_data.get('SPX', {}).get('last', 5000.0)
+        
+        for option in options_data:
+            if option.get('symbol') != 'SPX':
+                continue
+                
+            try:
+                # Calculate moneyness and time to expiry
+                strike = option.get('strike', 0)
+                if strike <= 0:
+                    continue
+                    
+                moneyness = strike / spot
+                
+                # Only use options within reasonable moneyness range
+                if not (0.8 <= moneyness <= 1.2):
+                    continue
+                
+                # Calculate time to expiry
+                expiry_str = option.get('expiry', '')
+                if not expiry_str:
+                    continue
+                    
+                expiry_date = datetime.strptime(expiry_str, "%Y%m%d")
+                days_to_expiry = (expiry_date - datetime.now()).days
+                if days_to_expiry <= 0:
+                    continue
+                    
+                time_to_expiry = days_to_expiry / 365.0
+                
+                # Get implied volatility
+                iv = option.get('implied_vol', 0)
+                if iv <= 0.05 or iv >= 1.0:  # Reasonable IV bounds
+                    continue
+                
+                # Get market data quality indicators
+                bid = option.get('bid', 0)
+                ask = option.get('ask', 0)
+                volume = option.get('volume', 0)
+                
+                if bid <= 0 or ask <= 0 or ask <= bid:
+                    continue
+                
+                # Add to calibration dataset
+                calibration_data.append({
+                    'strike': strike,
+                    'expiry': time_to_expiry,
+                    'iv': iv,
+                    'volume': volume,
+                    'bid': bid,
+                    'ask': ask,
+                    'moneyness': moneyness,
+                    'option_type': option.get('type', 'C')
+                })
+                
+            except Exception as e:
+                logger.debug(f"Skipping option due to data error: {e}")
+                continue
+        
+        df = pd.DataFrame(calibration_data)
+        logger.info(f"Prepared {len(df)} options for calibration")
+        return df
+    
+    def _get_fallback_params(self) -> Dict:
+        """Return fallback Heston parameters when calibration fails"""
+        return {
+            'params': {
+                'theta': 0.04,      # Long-run variance
+                'kappa': 2.0,       # Mean reversion speed
+                'xi': 0.3,          # Vol of vol
+                'rho': -0.7,        # Correlation
+                'v0': 0.04          # Initial variance
+            },
+            'rmse': 0.05,
+            'status': 'fallback',
+            'timestamp': datetime.now(),
+            'message': 'Using fallback parameters'
+        }
+
     def calibrate(self, iv_surface: pd.DataFrame, spot: float, 
                  r_curve: Dict[float, float], q_curve: Dict[float, float]) -> Dict:
         """
