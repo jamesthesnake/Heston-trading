@@ -1,0 +1,41 @@
+🎯 HESTON TRADING SYSTEM - NEWBIE INSTRUCTIONS
+======================================================
+
+📁 WHAT IS THIS?
+A professional options trading system that simulates real SPX/XSP options trading.
+You'll see live market data, trading positions, and a professional dashboard.
+100% SIMULATION - No real money involved!
+
+⚡ HOW TO START (2 COMMANDS ONLY):
+
+1. Open Terminal and go to this folder:
+   cd /path/to/Heston-trading
+
+2. Run the setup script:
+   ./setup_and_run_v2.sh
+
+That's it! The script does EVERYTHING automatically.
+
+🌐 WHAT YOU'LL GET:
+- Professional trading dashboard at: http://localhost:8050
+- Live SPX/SPY/VIX prices updating every second
+- 700+ options contracts with real pricing
+- Active trading positions with live P&L
+- Risk monitoring and trading signals
+
+🎮 BONUS - TRY THE DEMO:
+python demo_data.py
+
+🛑 TO STOP:
+Press Ctrl+C in the terminal
+
+📖 NEED MORE HELP?
+- Read: QUICK_START.md (step-by-step with pictures)
+- Read: README_SIMPLE.md (detailed guide)
+
+🚀 YOU'LL LOVE IT!
+This looks and feels like a real $10,000+ trading platform!
+
+======================================================
+START HERE: ./setup_and_run_v2.sh
+======================================================
